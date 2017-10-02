@@ -1,0 +1,8 @@
+[paths]
+source=project_settings
+
+[run]
+data_file=../.coverage
+
+[html]
+title=Project-settings coverage report

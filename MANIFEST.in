@@ -1,0 +1,5 @@
+include MANIFEST.in
+include README.md
+include site_settings
+global-exclude __pycache__
+global-exclude *.py[co]

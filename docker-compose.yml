@@ -1,0 +1,51 @@
+version: "3.3"
+services:
+  py27:
+    build: ./docker/py27/
+    environment:
+      - VERSION=py27
+    volumes:
+      - ./:/usr/src/app_original/
+    entrypoint:
+      - /usr/src/app_original/docker-entrypoint.sh
+    command: tox --workdir /usr/src/.tox
+
+  py33:
+    build: ./docker/py33/
+    environment:
+      - VERSION=py33
+    volumes:
+      - ./:/usr/src/app_original/
+    entrypoint:
+      - /usr/src/app_original/docker-entrypoint.sh
+    command: tox --workdir /usr/src/.tox
+
+  py34:
+    build: ./docker/py34/
+    environment:
+      - VERSION=py34
+    volumes:
+      - ./:/usr/src/app_original/
+    entrypoint:
+      - /usr/src/app_original/docker-entrypoint.sh
+    command: tox --workdir /usr/src/.tox
+
+  py35:
+    build: ./docker/py35/
+    environment:
+      - VERSION=py35
+    volumes:
+      - ./:/usr/src/app_original/
+    entrypoint:
+      - /usr/src/app_original/docker-entrypoint.sh
+    command: tox --workdir /usr/src/.tox
+
+  py36:
+    build: ./docker/py36/
+    environment:
+      - VERSION=py36
+    volumes:
+      - ./:/usr/src/app_original/
+    entrypoint:
+      - /usr/src/app_original/docker-entrypoint.sh
+    command: tox --workdir /usr/src/.tox
