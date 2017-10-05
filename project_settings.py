@@ -76,19 +76,19 @@ class Settings(BaseSettings):
     def get_name(self):
         return 'settings'
 
-    def configure(self, base_settings_name=None, site_settings_module=None, global_settings_module=None):
+    def configure(self, base_settings_name=None, project_settings_module=None, global_settings_module=None):
         if not base_settings_name:
             base_settings_name = os.environ.get(
                 'BASE_SETTINGS_NAME',
                 'PROJECT'
             )
 
-        if not site_settings_module:
-            site_settings_module_name = os.environ.get(
-                'SITE_SETTINGS_MODULE_NAME',
+        if not project_settings_module:
+            project_settings_module_name = os.environ.get(
+                'PROJECT_SETTINGS_MODULE_NAME',
                 '{}_SETTINGS_MODULE'.format(base_settings_name)
             )
-            site_settings_module = os.environ.get(site_settings_module_name)
+            project_settings_module = os.environ.get(project_settings_module_name)
 
         if not global_settings_module:
             global_settings_module_name = os.environ.get(
@@ -97,7 +97,7 @@ class Settings(BaseSettings):
             )
             global_settings_module = os.environ.get(global_settings_module_name)
 
-        if not site_settings_module and not global_settings_module:
+        if not project_settings_module and not global_settings_module:
             raise EnvironmentError('SETTINGS_MODULE not specified!')
 
         # Настройки из переменных окружения, если они начинаются на базовое имя
@@ -109,7 +109,7 @@ class Settings(BaseSettings):
         }
 
         # Настройки из модулей
-        for settings_module in filter(None, [site_settings_module, global_settings_module]):
+        for settings_module in filter(None, [project_settings_module, global_settings_module]):
             try:
                 settings_module = importlib.import_module(settings_module)
             except ImportError:
@@ -129,12 +129,12 @@ class Settings(BaseSettings):
 class AppSettings(BaseSettings):
     __slots__ = (
         'settings', 'configured',
-        'site_settings', 'settings_module',
+        'project_settings', 'settings_module',
         'label', 'app', 'app_module', 'is_ready'
     )
 
-    def __init__(self, site_settings, settings_module, label, app):
-        self.site_settings = site_settings
+    def __init__(self, project_settings, settings_module, label, app):
+        self.project_settings = project_settings
         self.settings_module = settings_module
         self.label = label
         self.app = app
@@ -157,7 +157,7 @@ class AppSettings(BaseSettings):
         }
 
         # Настроики для приложения из основных настроек, если они начинаются на имя приложения
-        for key, value in self.site_settings.items():
+        for key, value in self.project_settings.items():
             if not key.isupper() or not key.startswith(prefix):
                 continue
 
@@ -182,14 +182,14 @@ class AppSettings(BaseSettings):
 
 class AppsSettings:
     __slots__ = (
-        'site_settings', 'configured',
+        'project_settings', 'configured',
         'is_ready', 'apps'
     )
 
-    def __init__(self, site_settings):
+    def __init__(self, project_settings):
         self.is_ready = False
         self.apps = OrderedDict()
-        self.site_settings = site_settings
+        self.project_settings = project_settings
         self.configured = False
 
     def __getitem__(self, item):
@@ -203,7 +203,7 @@ class AppsSettings:
         self.configure()
 
     def configure(self):
-        for app in self.site_settings.INSTALLED_APPS:
+        for app in self.project_settings.INSTALLED_APPS:
             app_label = app.split('.')[-1]
             cls_name = '{app_label}Settings'.format(
                 app_label=''.join(map(lambda x: x.capitalize(), app_label.split('_'))))
@@ -212,7 +212,7 @@ class AppsSettings:
 
             cls = getattr(settings_module, cls_name)
             config = cls(
-                site_settings=self.site_settings, settings_module=settings_module,
+                project_settings=self.project_settings, settings_module=settings_module,
                 label=app_label, app=app
             )
             config.configure()

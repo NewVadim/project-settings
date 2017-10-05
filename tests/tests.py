@@ -2,8 +2,6 @@ import os
 import sys
 import unittest
 
-import logging.config
-
 
 class SiteSettingsTests(unittest.TestCase):
     def setUp(self):
