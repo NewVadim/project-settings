@@ -2,6 +2,7 @@ from project.conf import settings
 
 SETTINGS_VAR = 'settings_var'
 
+settings.DEFAULT_VAR = 'settings_default_var'
 settings.EXTRA_VAR = 'settings_extra_var'
 
 GLOBAL_VAR3 = 'settings_global_var3'

@@ -1,5 +1,4 @@
 import os
-import sys
 import unittest
 
 
@@ -7,23 +6,27 @@ class SiteSettingsTests(unittest.TestCase):
     def setUp(self):
         from project.conf import settings, apps_settings
 
-        os.environ['PROJECT_SETTINGS_MODULE'] = 'project.conf.main'
+        os.environ['PROJECT_SETTINGS_MODULE'] = 'project.conf.extra'
         os.environ['PROJECT_GLOBAL_SETTINGS_MODULE'] = 'project.conf.global'
         os.environ['PROJECT_GLOBAL_VAR2'] = 'global_var2_env'
 
         settings.reconfigure()
         apps_settings.reconfigure()
 
+        settings.configure()
+        apps_settings.configure()
+
         self.settings = settings
         self.apps_settings = apps_settings
 
     def tearDown(self):
-        sys.modules.pop('project.conf.main')
-        sys.modules.pop('project.conf.global')
+        from project.conf import settings
 
         os.environ.pop('PROJECT_SETTINGS_MODULE', None)
         os.environ.pop('PROJECT_GLOBAL_SETTINGS_MODULE', None)
         os.environ.pop('PROJECT_GLOBAL_VAR2', None)
+
+        settings.nullify()
 
     def test_vars(self):
         self.assertTrue(dir(self.settings))
@@ -40,11 +43,14 @@ class SiteSettingsTests(unittest.TestCase):
         self.assertIn('GLOBAL_VAR3', self.settings)
         self.assertEqual(self.settings.GLOBAL_VAR3, 'settings_global_var3')
 
+        self.assertIn('DEFAULT_VAR', self.settings)
+        self.assertEqual(self.settings.DEFAULT_VAR, 'settings_default_var')
+
         self.assertIn('EXTRA_VAR', self.settings)
-        self.assertEqual(self.settings.EXTRA_VAR, 'settings_extra_var')
+        self.assertEqual(self.settings.EXTRA_VAR, 'extra_var')
 
         self.assertIn('COMPLEX_VAR', self.settings)
-        self.assertEqual(self.settings.COMPLEX_VAR, 'settings_extra_var' + 'COMPLEX_VAR_VALUE')
+        self.assertEqual(self.settings.COMPLEX_VAR, 'extra_var' + 'COMPLEX_VAR_VALUE')
 
     def test_invalid_var(self):
         error = None
@@ -82,7 +88,10 @@ class InvalidSettingsModuleTest(unittest.TestCase):
         os.environ['PROJECT_SETTINGS_MODULE'] = 'invalid.path.settings'
 
     def tearDown(self):
+        from project.conf import settings
+
         os.environ.pop('PROJECT_SETTINGS_MODULE', None)
+        settings.nullify()
 
     def test(self):
         from project.conf import settings
@@ -100,6 +109,11 @@ class EmptySettingsModuleTest(unittest.TestCase):
     def setUp(self):
         os.environ.pop('PROJECT_SETTINGS_MODULE', None)
         os.environ.pop('PROJECT_GLOBAL_SETTINGS_MODULE', None)
+
+    def tearDown(self):
+        from project.conf import settings
+
+        settings.nullify()
 
     def test(self):
         from project.conf import settings
@@ -120,17 +134,19 @@ class AppsSettingsTests(unittest.TestCase):
         os.environ['PROJECT_SETTINGS_MODULE'] = 'project.conf.main'
         os.environ['APP1_VAR2'] = 'app1_var2_env'
 
-        settings.reconfigure()
-        apps_settings.reconfigure()
+        settings.configure()
+        apps_settings.configure()
 
         self.settings = settings
         self.apps_settings = apps_settings
 
     def tearDown(self):
-        sys.modules.pop('project.conf.main')
+        from project.conf import settings
 
         os.environ.pop('PROJECT_SETTINGS_MODULE', None)
         os.environ.pop('APP1_VAR2', None)
+
+        settings.nullify()
 
     def test_app_settings(self):
         self.assertEqual(len(self.apps_settings.apps), 2)

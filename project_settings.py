@@ -1,6 +1,7 @@
 # coding=utf-8
 
 import os
+import sys
 import importlib
 
 from collections import OrderedDict
@@ -11,11 +12,12 @@ __author__ = 'vadim'
 
 
 class BaseSettings(object):
-    __slots__ = ('name', 'settings', 'configured')
+    __slots__ = ('settings', 'configured', '_modules')
 
     def __init__(self):
         self.settings = {}
         self.configured = False
+        self._modules = set()
 
     def __dir__(self):
         return list(self.settings)
@@ -32,13 +34,12 @@ class BaseSettings(object):
         return value
 
     def __setattr__(self, key, value):
-        if key in self.__slots__:
-            super(BaseSettings, self).__setattr__(key, value)
-        else:
+        if key.isupper():
             if not self.configured and key in self.settings:
                 return
-
             self.settings[key] = value
+        else:
+            super(BaseSettings, self).__setattr__(key, value)
 
     def __getitem__(self, item):
         return self.__getattr__(item)
@@ -63,20 +64,30 @@ class BaseSettings(object):
         raise NotImplemented()
 
     def reconfigure(self):
-        self.configured = False
+        self.nullify()
         self.configure()
+
+    def nullify(self):
+        self.settings = {}
+        self.configured = False
+
+        for module in self._modules:
+            sys.modules.pop(module)
+
+        self._modules = set()
 
     def update(self, kwargs):
         self.settings.update(kwargs)
 
 
 class Settings(BaseSettings):
-    __slots__ = ('name', 'settings', 'configured')
-
     def get_name(self):
         return 'settings'
 
     def configure(self, base_settings_name=None, project_settings_module=None, global_settings_module=None):
+        if self.configured:
+            return
+
         if not base_settings_name:
             base_settings_name = os.environ.get(
                 'BASE_SETTINGS_NAME',
@@ -109,6 +120,8 @@ class Settings(BaseSettings):
         }
 
         # Настройки из модулей
+        before_imported_modules = set(sys.modules)
+
         for settings_module in filter(None, [project_settings_module, global_settings_module]):
             try:
                 settings_module = importlib.import_module(settings_module)
@@ -121,6 +134,9 @@ class Settings(BaseSettings):
 
                 setattr(self, name, deepcopy(getattr(settings_module, name)))
 
+        settings_modules = set(sys.modules) - before_imported_modules
+        self._modules = settings_modules
+
         self.INSTALLED_APPS = []
 
         self.configured = True
@@ -128,18 +144,16 @@ class Settings(BaseSettings):
 
 class AppSettings(BaseSettings):
     __slots__ = (
-        'settings', 'configured',
         'project_settings', 'settings_module',
-        'label', 'app', 'app_module', 'is_ready'
+        'label', 'app', 'app_module',
     )
 
-    def __init__(self, project_settings, settings_module, label, app):
+    def __init__(self, project_settings, app_module, settings_module, label, app):
         self.project_settings = project_settings
+        self.app_module = app_module
         self.settings_module = settings_module
         self.label = label
         self.app = app
-        self.app_module = None
-        self.is_ready = False
         super(AppSettings, self).__init__()
 
     def get_name(self):
@@ -173,24 +187,21 @@ class AppSettings(BaseSettings):
         self.configured = True
 
     def build(self):
-        self.app_module = importlib.import_module(self.app)
-        self.is_ready = True
+        pass
 
     def ready(self):
         pass
 
 
-class AppsSettings:
+class AppsSettings(object):
     __slots__ = (
-        'project_settings', 'configured',
-        'is_ready', 'apps'
+        'project_settings', 'configured', 'apps',
     )
 
     def __init__(self, project_settings):
-        self.is_ready = False
-        self.apps = OrderedDict()
         self.project_settings = project_settings
         self.configured = False
+        self.apps = OrderedDict()
 
     def __getitem__(self, item):
         return self.apps[item]
@@ -203,30 +214,33 @@ class AppsSettings:
         self.configure()
 
     def configure(self):
+        self.build()
+        for app_settings in self.apps.values():
+            app_settings.configure()
+
+        self.configured = all([app_settings.configured for app_settings in self.apps.values()])
+
+        assert self.configured, 'Apps is not ready: {}'.format(
+            ', '.join([app_settings.label for app_settings in self.apps.values() if not app_settings.configured])
+        )
+
+        for app_settings in self.apps.values():
+            app_settings.ready()
+
+    def build(self):
         for app in self.project_settings.INSTALLED_APPS:
             app_label = app.split('.')[-1]
             cls_name = '{app_label}Settings'.format(
                 app_label=''.join(map(lambda x: x.capitalize(), app_label.split('_'))))
 
+            app_module = importlib.import_module(app)
             settings_module = importlib.import_module('{}.settings'.format(app))
 
             cls = getattr(settings_module, cls_name)
             config = cls(
-                project_settings=self.project_settings, settings_module=settings_module,
+                project_settings=self.project_settings,
+                app_module=app_module, settings_module=settings_module,
                 label=app_label, app=app
             )
-            config.configure()
-
+            config.build()
             self.apps[app_label] = config
-
-        self.build()
-        self.configured = True
-
-    def build(self):
-        for app_settings in self.apps.values():
-            app_settings.build()
-
-        self.is_ready = True
-
-        for app_settings in self.apps.values():
-            app_settings.ready()
